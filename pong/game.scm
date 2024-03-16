@@ -3,6 +3,7 @@
 ;;; the codebase.
 
 (define-module (pong game)
+  #:use-module (ice-9 threads)
   #:use-module (sdl2)
   #:use-module (sdl2 events)
   #:use-module (sdl2 rect)
@@ -43,13 +44,13 @@
 
 (define (handle-events)
   (let ((e (poll-event)))
-       (cond ((quit-event? e)
+       (cond [(quit-event? e)
               (set! game-running #f)
-              (handle-events))
-             (#t #f))))
+              (handle-events)]
+             [(eq? e #f) #f]
+             (#t (handle-events)))))
 
 (define (handle-input)
-  (when (> iterations 2000) (set! game-running #f))
   (when (key-pressed? 'escape) (set! game-running #f))
   (when (key-pressed? 'w) (set! left-player (- left-player 1)))
   (when (key-pressed? 's) (set! left-player (+ left-player 1)))
@@ -65,6 +66,7 @@
     (handle-events)
     (handle-input)
     (draw ren texture)
+    (yield) ; Necessary so Emacs doesn't block waiting on geiser
     (game-loop-iter ren surface texture)))
 
 
