@@ -25,6 +25,8 @@
 (define player-width 24)
 (define left-player (- (/ win-height 2) (/ player-height 2)))
 (define right-player left-player)
+(define left-player-score 0)
+(define right-player-score 0)
 
 (define ball-x (/ win-width 2))
 (define ball-y (/ win-height 2))
@@ -42,11 +44,12 @@
 (define (->int v)
   (inexact->exact (round v)))
 
-#|
-(define circle-in-square (px py pr bx by bw bh)
-  (cond ((> (+ px pr) bx) #f)
-        ((> (+ px pr) bx) #f)
-|#
+(define (circle-in-square px py pr bx by bw bh)
+  (cond ((> (- px pr) (+ bx bw)) #f)
+        ((< (+ px pr) bx) #f)
+        ((> (- py pr) (+ by bh)) #f)
+        ((< (+ py pr) by) #f)
+        (#t #t)))
 
 (define (clamp v vmin vmax)
   (min (max v vmin) vmax))
@@ -57,6 +60,11 @@
 (define (draw-ball x y)
   (render-copy ren tex-ball #:dstrect (list (->int (- x (/ ball-width 2))) (->int (- y (/ ball-height 2))) ball-width ball-height)))
 
+(define (draw-score x s dir)
+  (when (> s 0)
+    (render-copy ren tex-ball #:dstrect (list x 8 (/ ball-width 2) (/ ball-height 2)))
+    (draw-score (+ x dir) (- s 1) dir)))
+
 (define (draw)
   (set-renderer-draw-color! ren 0 0 0 255)
   (clear-renderer ren)
@@ -64,6 +72,8 @@
   (draw-player 16 left-player tex-player-a)
   (draw-player (- win-width (+ player-width 16)) right-player tex-player-b)
   (draw-ball ball-x ball-y)
+  (draw-score 8 left-player-score 16)
+  (draw-score (- win-width 8 (/ ball-width 2)) right-player-score -16)
   (present-renderer ren)
   (set! angle (+ angle 0.1)))
 
@@ -86,6 +96,26 @@
   (set! right-player (clamp right-player 0 (- win-height player-height))))
 
 (define (update-ball)
+  (when (circle-in-square ball-x ball-y (/ ball-width 2) 16 left-player player-width player-height)
+    (set! ball-vx (* ball-vx -1.2)))
+  (when (circle-in-square ball-x ball-y (/ ball-width 2) (- win-width 16 player-width) right-player player-width player-height)
+    (set! ball-vx (* ball-vx -1.2)))
+  (when (> ball-y (- win-height (/ ball-height 2)))
+    (set! ball-vy (* ball-vy -1.2)))
+  (when (< ball-y (/ ball-height 2))
+    (set! ball-vy (* ball-vy -1.2)))
+  (when (< ball-x 0)
+    (set! right-player-score (+ 1 right-player-score))
+    (set! ball-x (/ win-width 2))
+    (set! ball-y (/ win-height 2))
+    (set! ball-vx 2)
+    (set! ball-vy 1.2))
+  (when (> ball-x win-width)
+    (set! left-player-score (+ 1 left-player-score))
+    (set! ball-x (/ win-width 2))
+    (set! ball-y (/ win-height 2))
+    (set! ball-vx 2)
+    (set! ball-vy 1.2))
   (set! ball-x (+ ball-x ball-vx))
   (set! ball-y (+ ball-y ball-vy)))
 
@@ -115,6 +145,8 @@
   (set! ball-y (/ win-height 2))
   (set! ball-vx 2)
   (set! ball-vy 1.2)
+  (set! left-player-score 0)
+  (set! right-player-score 0)
   (sdl-init)
   (image-init)
   (call-with-window (make-window)
