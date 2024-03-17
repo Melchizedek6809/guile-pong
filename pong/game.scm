@@ -3,8 +3,10 @@
 ;;; the codebase.
 
 (define-module (pong game)
+  #:export (pong-start)
   #:use-module (ice-9 threads)
   #:use-module (sdl2)
+  #:use-module (sdl2 image)
   #:use-module (sdl2 events)
   #:use-module (sdl2 rect)
   #:use-module (sdl2 render)
@@ -13,7 +15,6 @@
   #:use-module (sdl2 video))
 
 ;;; Globals-galore
-(define angle 0)
 (define game-running #t)
 (define iterations 0)
 
@@ -25,19 +26,24 @@
 (define left-player (- (/ win-height 2) (/ player-height 2)))
 (define right-player left-player)
 
+(define ren #f)
+(define tex-bg #f)
+(define tex-ball #f)
+(define tex-player-a #f)
+(define tex-player-b #f)
+
 (define (clamp v vmin vmax)
   (min (max v vmin) vmax))
 
-(define (draw-player ren x y)
-  (set-renderer-draw-color! ren 255 0 0 255)
-  ((@ (sdl2 render) fill-rect) ren (make-rect x y player-width player-height)))
+(define (draw-player x y tex)
+  (render-copy ren tex #:dstrect (list x y player-width player-height)))
 
-(define (draw ren texture)
+(define (draw)
   (set-renderer-draw-color! ren 0 0 0 255)
   (clear-renderer ren)
-  (render-copy ren texture #:angle angle)
-  (draw-player ren 16 left-player)
-  (draw-player ren (- win-width (+ player-width 16)) right-player)
+  (render-copy ren tex-bg)
+  (draw-player 16 left-player tex-player-a)
+  (draw-player (- win-width (+ player-width 16)) right-player tex-player-b)
   (present-renderer ren)
   (set! angle (+ angle 0.1)))
 
@@ -61,30 +67,35 @@
   (set! iterations (+ 1 iterations)))
 
 
-(define (game-loop-iter ren surface texture)
+(define (game-loop)
   (when game-running
     (handle-events)
     (handle-input)
-    (draw ren texture)
+    (draw)
     (yield) ; Necessary so Emacs doesn't block waiting on geiser
-    (game-loop-iter ren surface texture)))
+    (game-loop)))
 
+(define (load-assets)
+  (set! tex-bg (surface->texture ren (load-image "assets/bg.png")))
+  (set! tex-ball (surface->texture ren (load-image "assets/ball.png")))
+  (set! tex-player-a (surface->texture ren (load-image "assets/player_a.png")))
+  (set! tex-player-b (surface->texture ren (load-image "assets/player_b.png")))
+  #f)
 
-(define (game-loop ren)
-  (let* ((surface (load-bmp "assets/bg.bmp"))
-         (texture (surface->texture ren surface)))
-        (game-loop-iter ren surface texture)))
-
-
-(define-public (pong-start options)
+(define (pong-start options)
   (set! game-running #t)
   (set! angle 0)
   (set! iterations 0)
   (set! left-player (- (/ win-height 2) (/ player-height 2)))
   (set! right-player left-player)
   (sdl-init)
+  (image-init)
   (call-with-window (make-window)
                     (lambda (window)
                       (set-window-title! window "Guile - Pong")
-                      (call-with-renderer (make-renderer window) game-loop)))
+                      (call-with-renderer (make-renderer window) (lambda (r)
+                                                                   (set! ren r)
+                                                                   (load-assets)
+                                                                   (game-loop)))))
+  (image-quit)
   (sdl-quit))
